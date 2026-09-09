@@ -17,6 +17,8 @@ class RunStatus(StrEnum):
 
     def can_transition_to(self, status: RunStatus) -> bool:
         """Return whether transitioning from this status to ``status`` is valid."""
+        if not isinstance(status, RunStatus):
+            return False
         return status in ALLOWED_TRANSITIONS.get(self, frozenset())
 
 
