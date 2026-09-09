@@ -19,10 +19,10 @@ class RunStatus(StrEnum):
         """Return whether transitioning from this status to ``status`` is valid."""
         if not isinstance(status, RunStatus):
             return False
-        return status in ALLOWED_TRANSITIONS.get(self, frozenset())
+        return status in RUN_STATUS_ALLOWED_TRANSITIONS.get(self, frozenset())
 
 
-ALLOWED_TRANSITIONS: Final = MappingProxyType(
+RUN_STATUS_ALLOWED_TRANSITIONS: Final = MappingProxyType(
     {
         RunStatus.PENDING: frozenset(
             {
@@ -53,3 +53,18 @@ ALLOWED_TRANSITIONS: Final = MappingProxyType(
         ),
     }
 )
+
+
+class AttemptStatus(StrEnum):
+
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+    ABANDONED = "ABANDONED"
+
+    def can_transition_to(self, status: AttemptStatus) -> bool:
+        """Return whether transitioning from this status to ``status`` is valid."""
+        if not isinstance(status, AttemptStatus):
+            return False
+
+        return self == AttemptStatus.RUNNING and self != status

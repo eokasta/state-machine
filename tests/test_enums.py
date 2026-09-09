@@ -2,7 +2,7 @@ from typing import cast
 
 import pytest
 
-from state_machine.core.domain.enums import RunStatus
+from state_machine.core.domain.enums import AttemptStatus, RunStatus
 
 TRANSITIONS = [
     (current, next_status, next_status in current_targets)
@@ -42,3 +42,28 @@ def test_cannot_transition_to_incompatible_status(
     status = cast("RunStatus", incompatible_status)
 
     assert RunStatus.PENDING.can_transition_to(status) is False
+
+
+ATTEMPT_TRANSITIONS = [
+    (current, next_status, next_status != current and current is AttemptStatus.RUNNING)
+    for current in AttemptStatus
+    for next_status in AttemptStatus
+]
+
+
+@pytest.mark.parametrize(
+    ("current", "next_status", "expected"), ATTEMPT_TRANSITIONS
+)
+def test_attempt_status_can_transition_to_all_status_combinations(
+    current: AttemptStatus, next_status: AttemptStatus, expected: bool
+) -> None:
+    assert current.can_transition_to(next_status) is expected
+
+
+@pytest.mark.parametrize("incompatible_status", ["SUCCEEDED", None, object()])
+def test_attempt_status_cannot_transition_to_incompatible_status(
+    incompatible_status: object,
+) -> None:
+    status = cast("AttemptStatus", incompatible_status)
+
+    assert AttemptStatus.RUNNING.can_transition_to(status) is False
