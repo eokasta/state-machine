@@ -1,3 +1,5 @@
+"""Fixed lifecycle states used by the execution model."""
+
 from __future__ import annotations
 
 from enum import StrEnum
@@ -5,8 +7,14 @@ from types import MappingProxyType
 from typing import Final
 
 
-class RunStatus(StrEnum):
+class _TransitionStatus(StrEnum):
+    def can_transition_to(self, status: StrEnum) -> bool:
+        if not isinstance(status, type(self)):
+            return False
+        return status in _ALLOWED_TRANSITIONS.get((type(self), self), frozenset())
 
+
+class RunStatus(_TransitionStatus):
     PENDING = "PENDING"
     RUNNING = "RUNNING"
     RETRY_PENDING = "RETRY_PENDING"
@@ -15,22 +23,36 @@ class RunStatus(StrEnum):
     CANCELLED = "CANCELLED"
     DEAD_LETTER = "DEAD_LETTER"
 
-    def can_transition_to(self, status: RunStatus) -> bool:
-        """Return whether transitioning from this status to ``status`` is valid."""
-        if not isinstance(status, RunStatus):
-            return False
-        return status in RUN_STATUS_ALLOWED_TRANSITIONS.get(self, frozenset())
+
+class StageStatus(_TransitionStatus):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
 
 
-RUN_STATUS_ALLOWED_TRANSITIONS: Final = MappingProxyType(
+class SubStageStatus(_TransitionStatus):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+
+class AttemptStatus(_TransitionStatus):
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+    ABANDONED = "ABANDONED"
+
+
+_ALLOWED_TRANSITIONS: Final = MappingProxyType(
     {
-        RunStatus.PENDING: frozenset(
-            {
-                RunStatus.RUNNING,
-                RunStatus.CANCELLED,
-            }
+        (RunStatus, RunStatus.PENDING): frozenset(
+            {RunStatus.RUNNING, RunStatus.CANCELLED}
         ),
-        RunStatus.RUNNING: frozenset(
+        (RunStatus, RunStatus.RUNNING): frozenset(
             {
                 RunStatus.SUCCEEDED,
                 RunStatus.FAILED,
@@ -38,33 +60,34 @@ RUN_STATUS_ALLOWED_TRANSITIONS: Final = MappingProxyType(
                 RunStatus.CANCELLED,
             }
         ),
-        RunStatus.RETRY_PENDING: frozenset(
+        (RunStatus, RunStatus.RETRY_PENDING): frozenset(
+            {RunStatus.RUNNING, RunStatus.DEAD_LETTER, RunStatus.CANCELLED}
+        ),
+        (RunStatus, RunStatus.FAILED): frozenset(
+            {RunStatus.RETRY_PENDING, RunStatus.DEAD_LETTER}
+        ),
+        (StageStatus, StageStatus.PENDING): frozenset(
+            {StageStatus.RUNNING, StageStatus.CANCELLED}
+        ),
+        (StageStatus, StageStatus.RUNNING): frozenset(
+            {StageStatus.SUCCEEDED, StageStatus.FAILED, StageStatus.CANCELLED}
+        ),
+        (SubStageStatus, SubStageStatus.PENDING): frozenset(
+            {SubStageStatus.RUNNING, SubStageStatus.CANCELLED}
+        ),
+        (SubStageStatus, SubStageStatus.RUNNING): frozenset(
             {
-                RunStatus.RUNNING,
-                RunStatus.DEAD_LETTER,
-                RunStatus.CANCELLED,
+                SubStageStatus.SUCCEEDED,
+                SubStageStatus.FAILED,
+                SubStageStatus.CANCELLED,
             }
         ),
-        RunStatus.FAILED: frozenset(
+        (AttemptStatus, AttemptStatus.RUNNING): frozenset(
             {
-                RunStatus.RETRY_PENDING,
-                RunStatus.DEAD_LETTER,
+                AttemptStatus.SUCCEEDED,
+                AttemptStatus.FAILED,
+                AttemptStatus.ABANDONED,
             }
         ),
     }
 )
-
-
-class AttemptStatus(StrEnum):
-
-    RUNNING = "RUNNING"
-    SUCCEEDED = "SUCCEEDED"
-    FAILED = "FAILED"
-    ABANDONED = "ABANDONED"
-
-    def can_transition_to(self, status: AttemptStatus) -> bool:
-        """Return whether transitioning from this status to ``status`` is valid."""
-        if not isinstance(status, AttemptStatus):
-            return False
-
-        return self == AttemptStatus.RUNNING and self != status
