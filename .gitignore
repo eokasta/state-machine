@@ -12,3 +12,9 @@ wheels/
 # Local Databases
 
 *.sqlite3
+
+# Secret files
+.env
+
+# IDEs
+.vscode/
